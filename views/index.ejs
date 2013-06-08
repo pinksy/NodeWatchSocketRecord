@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title><%= title %></title>
+    <link rel='stylesheet' href='/css/style.css' />
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/lib/jquery-1.9.1.js"></script>
+    <script>
+      $(document).ready(function() {
+
+        function errorHandler(err){
+          var msg = 'An error occured: ';
+
+          switch (err.code) { 
+            case FileError.QUOTA_EXCEEDED_ERR: 
+            msg += 'Quota exceeded'; 
+            break;
+
+            case FileError.SECURITY_ERR: 
+            msg += 'Security'; 
+            break;
+
+            case FileError.INVALID_MODIFICATION_ERR: 
+            msg += 'Invalid modification'; 
+            break;
+
+            case FileError.INVALID_STATE_ERR: 
+            msg += 'Invalid state'; 
+            break;
+
+            case FileError.NOT_FOUND_ERR: 
+            msg += 'File or directory not found'; 
+            break;
+
+            case FileError.NOT_READABLE_ERR: 
+            msg += 'File or directory not readable'; 
+            break;
+
+            case FileError.PATH_EXISTS_ERR: 
+            msg += 'File or directory already exists'; 
+            break;
+
+            case FileError.TYPE_MISMATCH_ERR: 
+            msg += 'Invalid filetype'; 
+            break;
+
+            default:
+            msg += 'Unknown Error'; 
+            break;
+          };
+
+          console.log(msg);
+        };
+
+        function onInitFs(fs){
+
+          var date = new Date();
+          var month = date.getMonth().toString().length < 2 ? "0" + date.getMonth() : date.getMonth();
+          var day = date.getDate().toString().length < 2 ? "0" + date.getDate() : date.getDate();
+          var hours = date.getHours().toString().length < 2 ? "0" + date.getHours() : date.getHours();
+          var mins = date.getMinutes().toString().length < 2 ? "0" + date.getMinutes() : date.getMinutes();
+          var secs = date.getSeconds().toString().length < 2 ? "0" + date.getSeconds() : date.getSeconds();
+          var logname = date.getFullYear().toString() + month + day + hours + mins + secs + ".log"
+
+          fs.root.getFile(logname, {create: true}, function(fileEntry) {
+
+          var socket = io.connect('http://localhost');
+
+          socket.on("data", function(data) {
+
+            console.log(data);
+
+            fs.root.getFile(logname, {create: false}, function(fileEntry) {
+
+              fileEntry.createWriter(function(fileWriter) {
+
+                // Find end of file
+                fileWriter.seek(fileWriter.length);
+
+                var blob = new Blob(['\n' + data], {type: 'text/plain'});
+                fileWriter.write(blob);
+
+                fileEntry.getMetadata(function(metadata){
+                  $("#size").html("Log size: " + metadata.size + "B");
+                });
+
+              }, errorHandler);
+
+            }, errorHandler);
+
+            var obj = jQuery.parseJSON(data);
+            if(obj.type === "fruit"){
+              $("#fruit_variety").html(obj.name);
+              $("#fruit_sales").html(obj.sales);
+            }
+            else {
+              $("#vegetable_variety").html(obj.name);
+              $("#vegetable_sales").html(obj.sales);
+            }
+          });
+         }, errorHandler);
+        }
+
+        window.requestFileSystem = window.requestFileSystem || window.webkitRequestFileSystem;
+
+        window.webkitStorageInfo.requestQuota(window.PERSISTENT, 5*1024*1024, function(grantedBytes) {
+          window.requestFileSystem(window.PERSISTENT, grantedBytes, onInitFs, errorHandler);
+        }, function(e) {
+          console.error('Error requesting quota', e);
+        });
+      });
+    </script>
+  </head>
+  <body>
+    <h1><%= title %></h1>
+    <div id="basic_container">
+      <div class="basic_box_container" id="box_left">
+        <h2>Latest Fruit Stock Data</h2>
+        <div class="basic_box" id="fruit_box">
+          <div id="fruit_variety" class="basic_variety"></div>
+          <div id="fruit_sales" class="basic_sales"></div>
+        </div>
+      </div>
+      <div class="basic_box_container" id="box_right">
+        <h2>Latest Veg Stock Data</h2>
+        <div class="basic_box" id="vegetable_box">
+          <div id="vegetable_variety" class="basic_variety"></div>
+          <div id="vegetable_sales" class="basic_sales"></div>
+        </div>
+      </div>
+    </div>
+    <div id="size"></div>
+  </body>
+</html>
